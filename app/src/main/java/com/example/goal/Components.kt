@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.sp
 
 
 @Composable
-fun TextBox(title :String) {
+fun TextBox(title :String,text: String = "",onvalueChange: ((String) -> Unit)? = null ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -57,19 +57,23 @@ fun TextBox(title :String) {
     ) {
 
         CustomText(title)
-        MyTextField()
+        MyTextField(text){
+            if (onvalueChange != null) {
+                onvalueChange(it)
+            }
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MyTextField(){
-    var text by remember { mutableStateOf("") }
-
+fun MyTextField(text: String ="",onvalueChange: ((String) -> Unit)? =null){
     TextField(
         text,
         onValueChange = {
-            text = it
+            if (onvalueChange != null) {
+                onvalueChange(it)
+            }
         },
         colors = TextFieldDefaults.textFieldColors(
             containerColor = Color.Transparent,

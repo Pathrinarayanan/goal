@@ -2,10 +2,10 @@ package com.example.goal
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,13 +41,17 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 
 @Composable
-fun SignUp(navController: NavHostController){
-
+fun SignUp(navController: NavHostController , onSignupClick : (String, String, String, String) ->Unit={_,_,_, _, ->}){
+    var email by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
     Column (
         modifier = Modifier
             .fillMaxSize()
             .background(color = colorResource(R.color.silver))
             .padding(horizontal = 40.dp)
+            .padding(top =40.dp)
     ){
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -56,7 +60,7 @@ fun SignUp(navController: NavHostController){
             Box(modifier = Modifier.weight(0.8f)) {
                 TitleField("Sign Up")
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically , modifier = Modifier.clickable { navController.navigate("login") }) {
                 Text(
                     "Login",
                     fontWeight = FontWeight.W700,
@@ -75,17 +79,27 @@ fun SignUp(navController: NavHostController){
         Column (
             modifier = Modifier.padding(top=30.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)){
-            TextBox("Name")
-            TextBox("Email")
-            TextBox("Password")
-            TextBox("Password Confirmation")
+            TextBox("Name", text = name){
+                name = it
+            }
+            TextBox("Email",email){
+                email  = it
+            }
+            TextBox("Password", password){
+                password = it
+            }
+            TextBox("Password Confirmation",confirmPassword){
+                confirmPassword = it
+            }
         }
         Spacer(
             modifier = Modifier
                 .height(40.dp)
                 .fillMaxWidth()
         )
-        ButtonGradient("Sign Up")
+        ButtonGradient("Sign Up"){
+            onSignupClick(name, email, password,confirmPassword )
+        }
 
         Text(
             "Or sign up with:",
@@ -121,7 +135,10 @@ fun SignUp(navController: NavHostController){
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Login( navController: NavHostController) {
+fun Login(navController: NavHostController, onLoginClick: (String, String) -> Unit) {
+    var email by remember{ mutableStateOf("") }
+    var password by remember{ mutableStateOf("") }
+
     var checked by remember { mutableStateOf(false) }
         Column (
             modifier = Modifier
@@ -137,7 +154,9 @@ fun Login( navController: NavHostController) {
                 Box(modifier = Modifier.weight(0.8f)) {
                     TitleField("Log In")
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable {
+                    navController.navigate("signup")
+                }) {
                     Text(
                         "Sign Up",
                         fontWeight = FontWeight.W700,
@@ -157,9 +176,12 @@ fun Login( navController: NavHostController) {
                 modifier = Modifier.padding(top = 50.dp),
                 verticalArrangement = Arrangement.spacedBy(22.dp)
             ) {
-                TextBox("Email")
-                TextBox("Password")
-
+                TextBox("Email" , email){
+                    email = it
+                }
+                TextBox("Password", password){
+                    password =it
+                }
             }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -194,7 +216,9 @@ fun Login( navController: NavHostController) {
                     .height(40.dp)
                     .fillMaxWidth()
             )
-            ButtonGradient("Log In")
+            ButtonGradient("Log In"){
+                onLoginClick(email, password)
+            }
 
             Text(
                 "Or log in  with:",

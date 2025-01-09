@@ -1,13 +1,17 @@
 package com.example.goal
 
+import android.os.Build
+
+import androidx.annotation.RequiresApi
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -18,11 +22,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -36,14 +39,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -57,9 +58,11 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentEnforcement
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,32 +81,47 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.coroutineScope
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
+import com.example.goal.data.Goal
+import com.example.goal.data.GoalWithId
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Calendar
+import java.util.Date
 
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HabitItem(){
+fun HabitItem(goal : Goal?=null ,
+              onCheckboxClick: ((String, Long) -> Unit)? = null
+){
     val textboxGradient = Brush.horizontalGradient(
         listOf(
             Color(0xFF37C871),
             Color(0xff5FE394)
         )
     )
-    var checked by remember { mutableStateOf(false) }
+    val currentDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+    var containsToday = false
+    if(goal?.completedDates?.contains(currentDate) == true){
+        containsToday = true
+    }
+    var checked by remember { mutableStateOf(containsToday) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight()
             .clip(RoundedCornerShape(20.dp))
             .background(
-                Color(0xFFEDFFF4)
+                if (checked)
+                    Color(0xFFEDFFF4)
+                else Color(0xFFfbfbfb)
             )
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -111,13 +129,12 @@ fun HabitItem(){
     ){
 
         Text(
-            "Meditating",
+            goal?.habit ?:"",
             modifier = Modifier
                 .wrapContentHeight()
-
                 .weight(0.8f)
             ,
-            color = Color(0xFF37C871),
+            color = if(!checked) Color.Black else Color(0xFF37C871),
             fontSize = 16.sp,
             fontWeight = FontWeight.W500,
         )
@@ -127,21 +144,21 @@ fun HabitItem(){
                 checked = checked,
                 onCheckedChange = {
                     checked = !checked
+                    if(checked ) onCheckboxClick?.let {
+                        it1 ->
+                        goal?.created?.let { created ->
+                            it1("add", created
+                            )
+                        }
+
+                    }
+                    else onCheckboxClick?.let { it1 -> it1("minus", goal?.created ?:0L) }
                 },
-                enabled = checked,
-                modifier = Modifier.background(brush = textboxGradient),
-                colors = CheckboxDefaults.colors(
-                    checkedColor = Color.White,
-                    uncheckedColor = Color.White,
-                    checkmarkColor = Color.White,
-                    disabledUncheckedColor = Color.White
-                )
+                enabled = true,
+                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF37C871))
             )
         }
-        Icon(
-            Icons.Filled.MoreVert,
-            contentDescription = null,
-        )
+
 
     }
 }
@@ -150,11 +167,16 @@ fun HabitItem(){
 @Composable
 fun SettingsItem(){
     Row(
-        modifier = Modifier.fillMaxWidth().wrapContentHeight().clip(RoundedCornerShape(9.dp)).background(Color(0xFFfbfbfb)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .clip(RoundedCornerShape(9.dp))
+            .background(Color(0xFFfbfbfb)),
         verticalAlignment = Alignment.CenterVertically
     ){
         Text("Account",
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier
+                .padding(12.dp)
                 .weight(0.8f),
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold
@@ -170,7 +192,9 @@ fun SettingsItem(){
 @Composable
 fun SettingsPage(){
     Column(
-        modifier = Modifier.fillMaxWidth().fillMaxHeight()
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight()
             .background(color = colorResource(R.color.silver))
             .padding(10.dp)
             .padding(vertical = 10.dp),
@@ -178,7 +202,10 @@ fun SettingsPage(){
     ){
         Text("Settings", fontSize = 29.sp, fontWeight = FontWeight.Bold)
         Column(
-            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color.White).padding(20.dp),
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color.White)
+                .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)){
             for(i in 1..5){
                 SettingsItem()
@@ -188,36 +215,61 @@ fun SettingsPage(){
 }
 
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun JournalingPage(){
+fun JournalingPage(navController: NavController,goal: Goal){
     val textboxGradient = Brush.horizontalGradient(
         listOf(
             Color(0xFF37C871),
             Color(0xff5FE394)
         )
     )
+    val s = SimpleDateFormat("dd/MM/yyyy")
+    val date = goal.created?.let { Date(it) }
+    val created =s.format(date)
     Column(
-        modifier = Modifier.fillMaxSize().background(color = colorResource(R.color.silver)).padding(15.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .background(color = colorResource(R.color.silver))
+            .padding(15.dp)
+            .padding(top = 30.dp)
+            .verticalScroll(rememberScrollState())
     ){
-        Text("July 4 2022")
+        Text("${LocalDate.now().dayOfMonth} ${LocalDate.now().month} ${LocalDate.now().year}")
         Row(verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(15.dp),
             modifier = Modifier.padding(top =15.dp)
         ){
-            Icon(Icons.Filled.ArrowBack, contentDescription = null)
-            Text("Goals: Journaling Everyday", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+            Icon(Icons.Filled.ArrowBack, contentDescription = null,
+                modifier = Modifier.clickable (indication = null, interactionSource = remember {
+                    MutableInteractionSource()
+                } ){
+                    navController.popBackStack()
+                }
+                )
+            Text("Goals: ${goal.goal}", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
         }
         Column(
-            modifier = Modifier.padding(top =20.dp).clip(RoundedCornerShape(20.dp)).background(Color.White)
+            modifier = Modifier
+                .padding(top = 20.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
         ) {
-            CalendarView()
+            CalendarView(goal.completedDates)
         }
         Column(
-            modifier = Modifier.padding(top =20.dp).clip(RoundedCornerShape(20.dp)).background(Color.White)
+            modifier = Modifier
+                .padding(top = 20.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
         ) {
 
             Column(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)) .background(Color(0xfffbfbfb)).padding(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(Color(0xfffbfbfb))
+                    .padding(12.dp)
             ){
                 Row (verticalAlignment =Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(15.dp)
@@ -227,35 +279,80 @@ fun JournalingPage(){
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier =Modifier.weight(0.7f)
                     ) {
-                        Text("Journaling Everyday", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("${goal.goal}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                     Text("Achieved",
                         fontWeight = FontWeight.SemiBold,
-                        modifier =Modifier.clip(RoundedCornerShape(35.dp)).background(Color(0xffd7ffe7)).padding(10.dp),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(35.dp))
+                            .background(Color(0xffd7ffe7))
+                            .padding(10.dp),
                         style = TextStyle(textboxGradient))
 
                 }
-                for(i in 1..6) {
-                    Row(modifier = Modifier.padding(top = 30.dp)) {
+
+
+                    Row(modifier = Modifier.padding(top = 20.dp)) {
                         Text(
                             "Habit Name",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp,
                             modifier = Modifier.weight(0.8f)
                         )
-                        Text("Journaling", fontWeight = FontWeight.Normal, fontSize = 16.sp)
+                        Text("${goal.habit}", fontWeight = FontWeight.Normal, fontSize = 16.sp)
                     }
+                    Row(modifier = Modifier.padding(top = 20.dp)) {
+                        Text(
+                            "Target:",
+                            fontSize = 16.sp,
+                            modifier = Modifier.weight(0.8f)
+                        )
+                        Text("${goal.period} days", fontWeight = FontWeight.Normal, fontSize = 16.sp)
+                    }
+                    Row(modifier = Modifier.padding(top = 20.dp)) {
+                        Text(
+                            "Days Complete:",
+                            fontSize = 16.sp,
+                            modifier = Modifier.weight(0.8f)
+                        )
+                        Text("${goal.completedDates?.size ?:0 } days", fontWeight = FontWeight.Normal, fontSize = 16.sp)
+                    }
+
+                    Row(modifier = Modifier.padding(top = 20.dp)) {
+                        Text(
+                            "Habit Type",
+                            fontSize = 16.sp,
+                            modifier = Modifier.weight(0.8f)
+                        )
+                        Text("${goal.type}", fontWeight = FontWeight.Normal, fontSize = 16.sp)
+                    }
+                Row(modifier = Modifier.padding(top = 20.dp)) {
+                    Text(
+                        "Created On",
+                        fontSize = 16.sp,
+                        modifier = Modifier.weight(0.8f)
+                    )
+                    Text(created.toString(), fontWeight = FontWeight.Normal, fontSize = 16.sp)
+                }
                 }
             }
         }
     }
 
-}
+
 
 @Composable
-fun CalendarView() {
+fun CalendarView(completedDates: List<String>?) {
     val currentMonth = remember { mutableStateOf(Calendar.getInstance()) }
     val calendar = currentMonth.value
+    fun changeMonth(delta: Int) {
+        val newCalendar = Calendar.getInstance().apply {
+            time = calendar.time
+            add(Calendar.MONTH, delta) // Change the month by delta
+        }
+        currentMonth.value = newCalendar // Set the new Calendar instance
+    }
+
     val gradient = Brush.horizontalGradient(
         listOf(
             Color(0xffFFA450),
@@ -263,7 +360,9 @@ fun CalendarView() {
 
         ))
     Column(
-        modifier = Modifier.background(Color.White).padding(20.dp),
+        modifier = Modifier
+            .background(Color.White)
+            .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(25.dp)
     ) {
@@ -274,19 +373,20 @@ fun CalendarView() {
             Icon(
                 Icons.Filled.KeyboardArrowLeft, null,
                 modifier = Modifier.clickable {
-                    changeMonth(calendar, -1)
+                   // changeMonth(calendar, -1)
+                    changeMonth(-1)
+
                 },
             )
 
             Text(
                 text = SimpleDateFormat("MMMM\n  yyyy").format(calendar.time),
                 style = TextStyle(gradient)
-                // modifier = Modifier.align(Alignment.CenterVertically)
             )
             Icon(
                 Icons.Filled.KeyboardArrowRight, null,
                 modifier = Modifier.clickable {
-                    changeMonth(calendar, 1)
+                    changeMonth(1)
                 },
             )
         }
@@ -301,21 +401,40 @@ fun CalendarView() {
                 )
             }
         }
-
+        val completedDatesFormatted = completedDates?.map {
+            SimpleDateFormat("yyyy-MM-dd").parse(it)?.let { date ->
+                SimpleDateFormat("yyyy-MM-dd").format(date)
+            }
+        }?.toSet() ?: emptySet()
         // Days grid
         val daysInMonth = getDaysInMonth(calendar)
         LazyVerticalGrid(
 
             columns = GridCells.Fixed(7),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(240.dp),
             verticalArrangement = Arrangement.spacedBy(25.dp),
             horizontalArrangement = Arrangement.spacedBy(25.dp)
         ) {
             daysInMonth.forEach { day ->
+                val dateString = if (day != 0) {
+                    val date = Calendar.getInstance().apply {
+                        set(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), day)
+                    }
+                    SimpleDateFormat("yyyy-MM-dd").format(date.time)
+                } else {
+                    ""
+                }
+
+                val isCompleted = dateString in completedDatesFormatted
                 item {
                     Text(
                         text = if (day != 0) day.toString() else "",
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(if (isCompleted) Color(0xff5FE394) else Color.Transparent)
                     )
                 }
             }
@@ -346,7 +465,8 @@ fun getDaysInMonth(calendar: Calendar): List<Int> {
     return daysInMonth
 }
 @Composable
-fun ProgressReportPage(){
+fun ProgressReportPage(viewmodel: MainViewmodel, onClickProgress: ((Goal) -> Unit)?=null){
+    val goalsData = viewmodel.goalsData.collectAsState()
     var dropdownPeriod by remember { mutableStateOf(false) }
     val gradient = Brush.horizontalGradient(
         listOf(
@@ -355,6 +475,12 @@ fun ProgressReportPage(){
 
         )
     )
+    val completedTaskCount = goalsData.value ?.filter { goal ->
+        goal.goal.isCompleted
+    }?.size ?: 0
+    var progress:Float =0f
+    if(goalsData.value.isNotEmpty())
+        progress =( viewmodel.completedTaskCount.toFloat()/goalsData.value.size.toFloat() )
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -364,7 +490,9 @@ fun ProgressReportPage(){
     {
         Text("Progress", fontSize = 29.sp, fontWeight = FontWeight.Bold)
             Row (
-                modifier =Modifier.fillMaxWidth().padding(top =20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ){
                 Text("Progress Report", fontSize = 21.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(0.8f))
@@ -422,68 +550,64 @@ fun ProgressReportPage(){
                 }
 
         }
-        Column(modifier = Modifier.fillMaxWidth().wrapContentHeight()
+        Column(modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
             .padding(top = 10.dp)
             .clip(RoundedCornerShape(10.dp))
 
-        .background(Color.White).padding(12.dp)
+            .background(Color.White)
+            .padding(12.dp)
         ){
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Your Goals", fontSize = 21.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.9f))
-                Text(
-                    "see all",
-                    fontSize = 14.sp,
-                    fontFamily = FontFamily(Font(R.font.nunito_bolod)),
-                    fontWeight = FontWeight.Bold,
-                    style = TextStyle(
-                        brush = gradient
-                    )
-                )
-            }
+            Text("Your Goals", fontSize = 21.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 20.dp))
             Box(
-                modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+                modifier = Modifier
+                    .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
-                    progress = 0.7f,
+                    progress = progress,
                     color = colorResource(R.color.orange),
                     strokeWidth = 10.dp,
                     strokeCap = StrokeCap.Round,
                     trackColor = colorResource(R.color.silver),
-                    modifier = Modifier
-                        .size(80.dp)
+                    modifier = Modifier.size(80.dp)
+                )
+                Text(
+                    text = "${(progress * 100).toInt()}%", // Convert progress to percentage
+                    style = TextStyle(
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colorResource(R.color.orange)
+                    )
                 )
             }
-            Text("11 Habits of Goals Acheived",
-                modifier = Modifier.fillMaxWidth().padding(top =20.dp),
+            Text("${completedTaskCount} Habits of Goals Acheived",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 20.dp),
                 textAlign = TextAlign.Center,
                 fontSize = 16.sp,
                 style = TextStyle(
                     gradient
                 )
             )
-            Text("6 Habits goal has'nt acheived",
-                modifier = Modifier.fillMaxWidth().padding(top =10.dp, bottom = 40.dp),
+            Text("${goalsData.value.size - completedTaskCount} Habits goal has'nt acheived",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 40.dp),
                 textAlign = TextAlign.Center,
                 fontSize = 16.sp,
                 color = Color(0xFFa2a2a2)
             )
             Column(verticalArrangement = Arrangement.spacedBy(15.dp)){
-                for(i in 1..3) {
-                    ProgressItem()
+                goalsData.value.forEach {
+                    ProgressItem(it.goal){
+                        onClickProgress?.invoke(it.goal)
+                    }
                 }
             }
-            Text(
-                "see all",
-                fontSize = 14.sp,
-                fontFamily = FontFamily(Font(R.font.nunito_bolod)),
-                fontWeight = FontWeight.Bold,
-                style = TextStyle(
-                    brush = gradient
-                ),
-                modifier = Modifier.fillMaxWidth().padding(top =30.dp),
-                textAlign = TextAlign.Center
-            )
+
         }
 
 
@@ -491,21 +615,34 @@ fun ProgressReportPage(){
 }
 
 @Composable
-fun ProgressItem(){
+fun ProgressItem(goal: Goal,onClick:()->Unit){
     val textboxGradient = Brush.horizontalGradient(
         listOf(
             Color(0xFF37C871),
             Color(0xff5FE394)
         )
     )
+    var progress:Float =0f
+    val completed = goal.isCompleted
+    if((goal.period ?: 0) > 0)
+        progress =( (goal.completedDates?.size?.toFloat() ?:0f)/ (goal.period?.toFloat() ?:1f) )
     Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)) .background(Color(0xfffbfbfb)).padding(12.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(11.dp))
+            .background(Color(0xfffbfbfb))
+            .padding(12.dp)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }) {
+                onClick()
+            }
     ){
         Row (verticalAlignment =Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(15.dp)
             ){
             CircularProgressIndicator(
-                progress = 0.7f,
+                progress = progress,
                 color = Color(0xFF37c671),
                 strokeWidth = 4.dp,
                 strokeCap = StrokeCap.Round,
@@ -517,20 +654,23 @@ fun ProgressItem(){
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier =Modifier.weight(0.7f)
             ) {
-                Text("Journaling Everyday", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("7 from 7 days target", fontSize = 14.sp, color = colorResource(R.color.font_black))
+                Text(goal.goal ?:"", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("${goal.completedDates?.size ?:0} from ${goal.period} days target", fontSize = 14.sp, color = colorResource(R.color.font_black))
             }
 
-            Text("Achieved",
+            Text(if(completed) "Achieved" else "Unachieved",
                 fontWeight = FontWeight.SemiBold,
-                modifier =Modifier.clip(RoundedCornerShape(35.dp)).background(Color(0xffd7ffe7)).padding(10.dp),
-                style = TextStyle(textboxGradient))
+                modifier = Modifier
+                    .clip(RoundedCornerShape(35.dp))
+                    .background(if (completed) Color(0xffd7ffe7) else Color(0xFF959595))
+                    .padding(10.dp),
+                style = if(completed ) TextStyle(textboxGradient) else TextStyle ())
         }
     }
 }
 
 @Composable
-fun DeleteSuccess(){
+fun DeleteSuccess(onClick: () -> Unit){
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -597,13 +737,15 @@ fun DeleteSuccess(){
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold
             )
-            ButtonGradient("Ok")
+            ButtonGradient("Ok"){
+                onClick()
+            }
 
         }
     }
 
 @Composable
-fun DeletePage(){
+fun DeletePage(onDeleteClick: (() -> Unit)? =null, onCancelClick:()->Unit){
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -622,7 +764,7 @@ fun DeletePage(){
                 modifier = Modifier
                     .padding(top = 20.dp)
                     .clickable {
-                        // onClickClose()
+                        onCancelClick()
                     }
             )
         }
@@ -653,11 +795,19 @@ fun DeletePage(){
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold
         )
-        ButtonGradient("Delete")
+        ButtonGradient("Delete"){
+            onDeleteClick?.invoke()
+        }
         Text("Cancel",
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 10.dp, bottom = 50.dp),
+                .padding(top = 10.dp, bottom = 50.dp)
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }) {
+                    onCancelClick()
+                }
+            ,
             textAlign = TextAlign.Center,
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold
@@ -666,10 +816,12 @@ fun DeletePage(){
 }
 
 @Composable
-fun GoalItem(){
+fun GoalItem(goal : Goal?= null, onEditClick : ()->Unit, onDeleteClick: ()->Unit){
     var clickMore by remember{
         mutableStateOf(false)
     }
+    var  progress =0f
+    progress =(goal?.completedDates?.size?.toFloat() ?:0f) / (goal?.period?.toFloat()?:0f)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -682,7 +834,7 @@ fun GoalItem(){
     ){
         Row {
             Text(
-                "Finish 5 Philosophy books",
+                goal?.goal ?:"",
                 color = colorResource(R.color.font_black),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -710,7 +862,8 @@ fun GoalItem(){
                             Text("Edit")
                         },
                         onClick = {
-
+                            clickMore = false
+                            onEditClick()
                         }
                     )
                     DropdownMenuItem(
@@ -718,7 +871,8 @@ fun GoalItem(){
                             Text("Delete")
                         },
                         onClick = {
-
+                            clickMore = false
+                            onDeleteClick()
                         }
                     )
                 }
@@ -727,7 +881,7 @@ fun GoalItem(){
 
         }
         LinearProgressIndicator(
-            progress = 0.7f,
+            progress = progress,
             modifier = Modifier
                 .padding(end = 20.dp)
                 .fillMaxWidth()
@@ -738,14 +892,14 @@ fun GoalItem(){
         )
 
         Text(
-            "5 from 7 days target",
+            "${goal?.completedDates?.size ?:0} from ${goal?.period} days target",
                 color = colorResource(R.color.font_black),
             fontSize = 14.sp,
             fontFamily = FontFamily(Font(R.font.nunito_bolod)),
             fontWeight = FontWeight.Medium
         )
         Text(
-            "Everyday",
+            goal?.type ?:"",
                 color = Color(0xFFff5c00),
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium
@@ -755,23 +909,34 @@ fun GoalItem(){
 }
 
 @Composable
-fun CreateHabit(onClickClose : () ->Unit){
-    var dropdownPeriod by remember { mutableStateOf(false) }
-    var dropdownHabit by remember { mutableStateOf(false) }
-    var selectedPeriod by remember { mutableStateOf("30 days") }
-    var selectedHabit by remember { mutableStateOf("Everyday") }
+fun CreateHabit(navController: NavController,updateGoal :Goal?=null, onClickClose : (()->Unit)?=null, onCreateHabit :((String, String, Int, String)->Unit)?= null,
+                onEdit :((Goal)->Unit)?=null){
+    var showDropdownPeriod by remember { mutableStateOf(false) }
+    var showDropdownHabit by remember { mutableStateOf(false) }
+    var isEdit = false
+
+    var selectedPeriod by remember { mutableStateOf("${updateGoal?.period ?: 7} days" ) }
+    var selectedPeriodInDays by remember { mutableStateOf(updateGoal?.period?:7) }
+    var selectedHabitTime by remember { mutableStateOf(updateGoal?.type ?:"") }
+    var habit by remember { mutableStateOf(updateGoal?.habit ?:"") }
+    var goal by remember { mutableStateOf(updateGoal?.goal ?:"") }
+    if(updateGoal !=null){
+        isEdit  = true
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight()
             .clip(RoundedCornerShape(4.dp))
             .background(colorResource(R.color.silver))
-            .padding(15.dp),
+            .padding(15.dp)
+            .padding(top = 40.dp)
+        ,
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ){
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Create New Habit Goal",
+                text = if(isEdit) "Edit a Habit" else "Create New Habit Goal",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(0.8f)
@@ -779,8 +944,10 @@ fun CreateHabit(onClickClose : () ->Unit){
             Icon(
                 Icons.Filled.Close,
                 contentDescription = null,
-                modifier =  Modifier.clickable { 
-                    onClickClose()
+                modifier =  Modifier.clickable {
+                    if(isEdit) navController.popBackStack()
+                    else
+                    onClickClose?.invoke()
                 }
             )
         }
@@ -791,8 +958,12 @@ fun CreateHabit(onClickClose : () ->Unit){
                 .background(Color.Gray)
                 .padding(bottom = 20.dp)
         )
-        TextBox("Your Name")
-        TextBox("Habit Goal")
+        TextBox("Your Goal", text = goal){
+            goal =it
+        }
+        TextBox("Your Habit", text =  habit){
+            habit = it
+        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -810,7 +981,7 @@ fun CreateHabit(onClickClose : () ->Unit){
                     .padding(vertical = 5.dp)
                     .padding(horizontal = 15.dp)
                     .clickable {
-                        dropdownPeriod = true
+                        showDropdownPeriod = true
                     }
             ) {
                 Row (verticalAlignment = Alignment.CenterVertically){
@@ -821,27 +992,50 @@ fun CreateHabit(onClickClose : () ->Unit){
                     )
                 }
                 DropdownMenu(
-                    expanded = dropdownPeriod,
+                    expanded = showDropdownPeriod,
                     onDismissRequest = {
-                        dropdownPeriod = false
+                        showDropdownPeriod = false
                     }
                 ) {
-                    DropdownMenuItem(
-                        text = {
-                            Text("30 days")
-                        },
-                        onClick = {
-                            selectedPeriod = "30"
-                            dropdownPeriod = false
-                        }
-                    )
+
                     DropdownMenuItem(
                         text = {
                             Text("7 days")
                         },
                         onClick = {
-                            selectedPeriod = "30"
-                            dropdownPeriod = false
+                            selectedPeriod = "7 days"
+                            selectedPeriodInDays = 7
+                            showDropdownPeriod = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text("21 days")
+                        },
+                        onClick = {
+                            selectedPeriod = "21 days"
+                            selectedPeriodInDays = 7
+                            showDropdownPeriod = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text("30 days")
+                        },
+                        onClick = {
+                            selectedPeriod = "30 days"
+                            selectedPeriodInDays = 30
+                            showDropdownPeriod = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text("90 days")
+                        },
+                        onClick = {
+                            selectedPeriod = "90 days"
+                            selectedPeriodInDays = 90
+                            showDropdownPeriod = false
                         }
                     )
                     DropdownMenuItem(
@@ -849,8 +1043,9 @@ fun CreateHabit(onClickClose : () ->Unit){
                             Text("100 days")
                         },
                         onClick = {
-                            selectedPeriod = "30"
-                            dropdownPeriod = false
+                            selectedPeriod = "100 days"
+                            selectedPeriodInDays = 100
+                            showDropdownPeriod = false
                         }
                     )
                 }
@@ -873,41 +1068,65 @@ fun CreateHabit(onClickClose : () ->Unit){
                     .padding(vertical = 5.dp)
                     .padding(horizontal = 15.dp)
                     .clickable {
-                        dropdownHabit = true
+                        showDropdownHabit = true
                     }
             ) {
                 Row (verticalAlignment = Alignment.CenterVertically){
-                    Text(selectedHabit, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(selectedHabitTime, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Icon(
                         Icons.Filled.ArrowDropDown,
                         contentDescription = null,
                     )
                 }
                 DropdownMenu(
-                    expanded = dropdownHabit,
+                    expanded = showDropdownHabit,
                     onDismissRequest = {
-                        dropdownHabit = false
+                        showDropdownHabit = false
                     }
                 ) {
                     DropdownMenuItem(
                         text = {
-                            Text(".")
+                            Text("Everyday")
                         },
                         onClick = {
-                            selectedHabit = "Everyday"
-                            dropdownHabit = false
+                            selectedHabitTime = "Everyday"
+                            showDropdownHabit = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text("Weekdays")
+                        },
+                        onClick = {
+                            selectedHabitTime = "Weekdays"
+                            showDropdownHabit = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text("Weekends")
+                        },
+                        onClick = {
+                            selectedHabitTime = "Weekends"
+                            showDropdownHabit = false
                         }
                     )
                 }
             }
         }
-        ButtonGradient("Create New")
+        ButtonGradient( if(!isEdit)"Create New" else "Update"){
+            if(isEdit)
+                onEdit?.invoke(Goal(goal, habit, selectedPeriodInDays, selectedHabitTime,updateGoal?.created))
+            else
+                onCreateHabit?.invoke(goal, habit, selectedPeriodInDays, selectedHabitTime)
+        }
 
     }
 }
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainPage(){
+fun MainPage(viewmodel: MainViewmodel, navController: NavController){
     val pagerState = rememberPagerState(initialPage = 0, pageCount = {3})
     val coroutineScope = rememberCoroutineScope()
     var showCreateHabitDialog by remember { mutableStateOf(false) }
@@ -928,9 +1147,20 @@ fun MainPage(){
         bottomBar = {
             TabRow(
                 selectedTabIndex = pagerState.currentPage,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
                     .wrapContentHeight()
-                    .padding(bottom = 10.dp)
+                    .padding(bottom = 10.dp),
+                indicator = {
+                    listtabs->
+                    Box(
+                        Modifier
+                            .tabIndicatorOffset(listtabs[pagerState.currentPage]) // Indicator offset based on selected tab
+                            .background(color = colorResource(R.color.orange)) // Change to the color you want for the indicator
+                            .height(4.dp)
+
+                    )
+                }
             ) {
                 val tabs = listOf(Icons.Filled.Home, Icons.Filled.Star, Icons.Filled.Settings)
                 tabs.forEachIndexed { index, icon ->
@@ -941,12 +1171,13 @@ fun MainPage(){
                                 coroutineScope.launch {
                                     pagerState.scrollToPage(index)
                                 }
-                        }
+                        },
                     ) {
                         Icon(
                             icon,
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
+                            tint = if(index == pagerState.currentPage) colorResource(R.color.orange) else Color.LightGray
                         )
                     }
                 }
@@ -954,29 +1185,53 @@ fun MainPage(){
             }
         }
     ){padding->
-          Column(modifier = Modifier.fillMaxSize().background(color = colorResource(R.color.silver))){
+        val goalsData= viewmodel.goalsData.collectAsState().value
+
+        Column(modifier = Modifier
+            .fillMaxSize()
+            .background(color = colorResource(R.color.silver))){
             HorizontalPager(
             state = pagerState,
                 modifier = Modifier.padding( padding)
             ) {currentPage->
                 when(currentPage){
                     0->{
-                        HomePage()
+                        HomePage(navController,viewmodel, goalsData)
                         if(showCreateHabitDialog){
                             AlertDialog(
                                 onDismissRequest = {
                                     showCreateHabitDialog = false
                                 }
                             ){
-                                CreateHabit(){
-                                    showCreateHabitDialog = false
-
-                                }
+                                CreateHabit(
+                                    navController,
+                                    onClickClose = {
+                                        showCreateHabitDialog = false
+                                    },
+                                    onCreateHabit = { goal, habit, period, type ->
+                                        viewmodel.addGoal(
+                                            goal = Goal(
+                                                goal,
+                                                habit,
+                                                period,
+                                                type,
+                                                System.currentTimeMillis()
+                                            ),
+                                            onSucess = {
+                                                viewmodel.fetchGoals()
+                                                showCreateHabitDialog = false
+                                            }
+                                        )
+                                    })
                             }
                         }
+
                     }
                     1->{
-                        ProgressReportPage()
+                        ProgressReportPage(viewmodel){
+                            val completedDatesString = it.completedDates?.joinToString(",")
+                            navController.navigate("onGoalDetails/${it.goal}/${it.habit}/${it.period}/${completedDatesString}/${it.type}/${it.created}/${it.isCompleted}"  )
+                        }
                     }
                     2->{
                         SettingsPage()
@@ -989,9 +1244,25 @@ fun MainPage(){
 
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
+fun getTodayCompletedTasks(goalsData: List<GoalWithId>): Int {
+    val currentDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
 
+    return goalsData
+        .map{ it.goal}
+        .mapNotNull { it.completedDates } // Extract the completedDates lists
+        .flatten()
+        .count { it == currentDate }
+}
+@OptIn(ExperimentalMaterial3Api::class)
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun HomePage(){
+fun HomePage(navController: NavController,viewmodel: MainViewmodel, goalsData: List<GoalWithId>){
+    viewmodel.completedTaskCount = getTodayCompletedTasks(goalsData)
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showDeleteSuccessDialog by remember { mutableStateOf(false) }
+    var deleteId by remember { mutableStateOf("") }
+
     val gradient = Brush.horizontalGradient(
         listOf(
             Color(0xffFFA450),
@@ -999,6 +1270,43 @@ fun HomePage(){
         )
     )
 
+       var progress:Float =0f
+      if(goalsData.isNotEmpty())
+            progress =( viewmodel.completedTaskCount.toFloat()/goalsData.size.toFloat() )
+    val date = LocalDate.now()
+    val weekdays =listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+
+    AnimatedVisibility(showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteDialog = false
+            }
+        ) {
+            DeletePage(
+                onDeleteClick = {
+                    showDeleteDialog = false
+                    showDeleteSuccessDialog = true
+                    viewmodel.onDeleteGoal(deleteId)
+
+                },
+                onCancelClick = {
+                    showDeleteDialog = false
+
+                }
+            )
+        }
+    }
+    AnimatedVisibility (showDeleteSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteSuccessDialog = false
+            }
+        ) {
+            DeleteSuccess() {
+                showDeleteSuccessDialog = false
+            }
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1007,11 +1315,10 @@ fun HomePage(){
             .verticalScroll(rememberScrollState())
     ){
         Text(
-            "Sun 1, March 2022",
+            "${weekdays[date.dayOfWeek.value]}, ${date.dayOfMonth} ${date.month} ${date.year}",
             fontSize = 16.sp,
-            fontFamily = FontFamily(Font(R.font.nunito_bolod)),
             color = colorResource(R.color.font_black),
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.SemiBold
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)){
             Text(
@@ -1022,7 +1329,7 @@ fun HomePage(){
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                "Sussy,",
+                viewmodel.username,
                 fontSize = 28.sp,
                 fontFamily = FontFamily(Font(R.font.nunito_bolod)),
                 color = colorResource(R.color.orange),
@@ -1050,7 +1357,7 @@ fun HomePage(){
                 {
                     Box(contentAlignment = Alignment.CenterStart) {
                         CircularProgressIndicator(
-                            progress = 0.7f,
+                            progress = progress,
                             color = Color.White,
                             strokeWidth = 7.dp,
                             strokeCap = StrokeCap.Round,
@@ -1059,8 +1366,8 @@ fun HomePage(){
                                 .size(80.dp)
                         )
                         Text(
-                            text = "70%",
-                            fontSize = 21.sp,
+                            text = "${(progress*100).toInt()}%",
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = colorResource(R.color.white),
                             modifier = Modifier.padding(start = 25.dp)
@@ -1068,7 +1375,7 @@ fun HomePage(){
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            "3 of 5 habits",
+                            "${viewmodel.completedTaskCount}  of  ${goalsData.size} habits",
                             fontSize = 20.sp,
                             color = Color.White,
                             fontWeight = FontWeight.SemiBold
@@ -1112,28 +1419,49 @@ fun HomePage(){
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(0.8f)
                 )
-                Text(
-                    "see all",
-                    fontSize = 14.sp,
-                    fontFamily = FontFamily(Font(R.font.nunito_bolod)),
-                    fontWeight = FontWeight.Bold,
-                    style = TextStyle(
-                        brush = gradient
+                if(goalsData.size>3) {
+                    Text(
+                        "see all",
+                        fontSize = 14.sp,
+                        fontFamily = FontFamily(Font(R.font.nunito_bolod)),
+                        fontWeight = FontWeight.Bold,
+                        style = TextStyle(
+                            brush = gradient
+                        ),
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            navController.navigate("yourHabits")
+                        }
                     )
-                )
+                }
 
 
             }
-
             Column(
                 modifier = Modifier.padding(top = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                for (i in 1..3)
-                        HabitItem()
+                goalsData.take(3).forEach {
+                        it1 -> HabitItem(it1.goal){action, id->
+                            if(action =="add"){
+                                viewmodel.completedTaskCount +=1
+                                viewmodel.addCurrentDateToGoal(it1.id)
+
+                            }
+                        else{
+                            viewmodel.completedTaskCount -=1
+                                viewmodel.removeCurrentDateFromGoal(it1.id)
+
+                            }
+                    viewmodel.fetchGoals()
+                    }
+                    }
+                }
 
             }
-        }
+
 
             Column(
                 modifier = Modifier
@@ -1156,16 +1484,20 @@ fun HomePage(){
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(0.8f)
                     )
-                    Text(
-                        "see all",
-                        fontSize = 14.sp,
-                        fontFamily = FontFamily(Font(R.font.nunito_bolod)),
-                        fontWeight = FontWeight.Bold,
-                        style = TextStyle(
-                            brush = gradient
+                    if(goalsData.size>3) {
+                        Text(
+                            "see all",
+                            fontSize = 14.sp,
+                            fontFamily = FontFamily(Font(R.font.nunito_bolod)),
+                            fontWeight = FontWeight.Bold,
+                            style = TextStyle(
+                                brush = gradient
+                            ),
+                            modifier = Modifier.clickable {
+                                navController.navigate("yourGoals")
+                            }
                         )
-                    )
-
+                    }
 
                 }
 
@@ -1173,191 +1505,271 @@ fun HomePage(){
                     modifier = Modifier.padding(top = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    for (i in 1..3)
-                            GoalItem()
-
+                    goalsData.take(3).forEach {
+                        GoalItem(it.goal,
+                            onDeleteClick = {
+                                showDeleteDialog = true
+                                deleteId = it.id
+                            },
+                            onEditClick = {
+                                navController.navigate("edit/${it.id}/${it.goal.goal}/${it.goal.habit}/${it.goal.period}/${it.goal.type}/${it.goal.created}")
+                            }
+                        )
+                    }
+                }
                 }
 
             }
         }
 
 
+
+
+@RequiresApi(Build.VERSION_CODES.O)
+fun generateDates(): List<Pair<Pair<String,String>, LocalDate>> {
+    val today = LocalDate.now()
+    return (0 until 364).map { offset ->
+        val date = today.minusDays(offset.toLong())
+        val day = date.dayOfMonth.toString()
+        val month = date.month.toString().substring(0, 3)
+        Pair(Pair(day, month), date)
+    }
 }
 
-@Composable
-fun DateItem(){
-     Column(
-         modifier = Modifier
-             .clip(RoundedCornerShape(4.dp))
-             .size(65.dp)
-             .background(Color(0xFFffeddc))
-             .border(width = 1.dp, color = Color(0xffd9b6), shape = RoundedCornerShape(4.dp))
-             .padding(10.dp),
-
-     ){
-         val gradient = Brush.horizontalGradient(
-             listOf(
-                 Color(0xffFFA450),
-                 colorResource(R.color.orange)
-
-             )
-         )
-         Text("1",
-             modifier =Modifier.fillMaxWidth(),
-             textAlign = TextAlign.Center,
-             fontSize = 21.sp,
-             style = TextStyle(
-                 brush = gradient
-             ),
-             fontWeight = FontWeight.W600
-             )
-         Text("March",    modifier =Modifier.fillMaxWidth(),
-             textAlign = TextAlign.Center,
-             fontSize = 14.sp,
-             style = TextStyle(
-                 brush = gradient
-             ),
-             fontWeight = FontWeight.W500
-         )
-     }
-}
-
-
-@Composable
-fun YourGoalsPage(){
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(color = colorResource(R.color.silver))
-            .padding(20.dp)){
-
-
-
+    @Composable
+    fun DateItem(
+        index: Int,
+        selectedIndex: Int,
+        date: LocalDate,
+        day: String,
+        month: String,
+        onClick: (Int) -> Unit
+    ) {
         Column(
             modifier = Modifier
-                .padding(top = 30.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .fillMaxWidth()
-                .wrapContentHeight()
-                .background(Color.White)
-                .padding(14.dp)
-        )
-        {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            )
-            {
-                Icon(
-                    Icons.Filled.ArrowBack, contentDescription = null,
-                    modifier = Modifier.size(24.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .size(65.dp)
+                .background(if (index != selectedIndex) Color.White else Color(0xFFffeddc))
+                .border(
+                    width = 1.dp,
+                    color = if (index == selectedIndex) Color(0xffd9b6) else Color.LightGray,
+                    shape = RoundedCornerShape(4.dp)
                 )
-                Text(
-                    "Your Goals",
-                    fontSize = 21.sp,
-                    fontFamily = FontFamily(Font(R.font.nunito_bolod)),
-                    fontWeight = FontWeight.W500,
-                    color = colorResource(R.color.font_black)
-                )
+                .padding(10.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    onClick(index)
+                },
 
-            }
-
-            Column(
-                modifier = Modifier.padding(top = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                for (i in 1..3)
-                    GoalItem()
-
-            }
-
-        }
-
-    }
-
-@Composable
-fun YourHabitsPage(){
-    val gradient = Brush.horizontalGradient(
-        listOf(
-            Color(0xffFFA450),
-            colorResource(R.color.orange)
-
-        )
-    )
-    Column(modifier = Modifier
-        .fillMaxSize()
-        .background(color = colorResource(R.color.silver))
-        .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(30.dp)
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(15.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.Filled.ArrowBack, contentDescription = null,
-                modifier = Modifier.size(24.dp)
+            val gradient = Brush.horizontalGradient(
+                listOf(
+                    Color(0xffFFA450),
+                    colorResource(R.color.orange)
+                )
             )
             Text(
-                "Your Habits",
-                fontWeight = FontWeight.W500,
+                day,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
                 fontSize = 21.sp,
-                color = colorResource(R.color.font_black)
+                style = if (index == selectedIndex) TextStyle(
+                    brush = gradient
+                )
+                else TextStyle(color = colorResource(R.color.font_black)),
+                fontWeight = FontWeight.W600
+            )
+            Text(
+                month,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                fontSize = 14.sp,
+                style = if (index == selectedIndex) TextStyle(
+                    brush = gradient
+                )
+                else TextStyle(color = colorResource(R.color.font_black)),
+                fontWeight = FontWeight.W500
             )
         }
-        LazyRow(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxWidth()
-        )
-        {
-            items(10) {
-                DateItem()
-            }
-        }
+    }
+
+
+
+    @Composable
+    fun YourGoalsPage(viewmodel: MainViewmodel, navController: NavHostController) {
+        val goalsData = viewmodel.goalsData.collectAsState()
         Column(
             modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .fillMaxWidth()
-                .wrapContentHeight()
-                .background(Color.White)
-                .padding(14.dp)
-        )
-        {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+                .fillMaxSize()
+                .background(color = colorResource(R.color.silver))
+                .padding(20.dp)
+        ) {
+
+
+            Column(
+                modifier = Modifier
+                    .padding(top = 30.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+                    .background(Color.White)
+                    .padding(14.dp)
             )
             {
-                Text(
-                    "Today Habit",
-                    fontSize = 21.sp,
-                    fontFamily = FontFamily(Font(R.font.nunito_bolod)),
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(0.8f)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 )
-                Text(
-                    "see all",
-                    fontSize = 14.sp,
-                    fontFamily = FontFamily(Font(R.font.nunito_bolod)),
-                    fontWeight = FontWeight.Bold,
-                    style = TextStyle(
-                        brush = gradient
+                {
+                    Icon(
+                        Icons.Filled.ArrowBack, contentDescription = null,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                navController.popBackStack()
+                            }
                     )
-                )
+                    Text(
+                        "Your Goals",
+                        fontSize = 21.sp,
+                        fontFamily = FontFamily(Font(R.font.nunito_bolod)),
+                        fontWeight = FontWeight.W500,
+                        color = colorResource(R.color.font_black)
+                    )
 
+                }
+
+                Column(
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    goalsData.value.forEach {
+                        GoalItem(it.goal,
+                            onDeleteClick = {
+                                viewmodel.onDeleteGoal(it.id)
+                            },
+                            onEditClick = {
+                                navController.navigate("edit/${it.id}/${it.goal.goal}/${it.goal.habit}/${it.goal.period}/${it.goal.type}/${it.goal.created}")
+                            })
+
+                    }
+                }
 
             }
 
-            Column(
-                modifier = Modifier.padding(top = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                for (i in 1..3)
-                    HabitItem()
+        }
+    }
 
+
+
+@RequiresApi(Build.VERSION_CODES.O)
+    @Composable
+    fun YourHabitsPage(viewmodel: MainViewmodel, navController: NavHostController) {
+        val goalsData = viewmodel.goalsData.collectAsState()
+        val gradient = Brush.horizontalGradient(
+            listOf(
+                Color(0xffFFA450),
+                colorResource(R.color.orange)
+
+            )
+        )
+        var selectedDateIndex by remember { mutableStateOf(0) }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(color = colorResource(R.color.silver))
+                .padding(20.dp)
+                .padding(top = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(30.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(15.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Filled.ArrowBack, contentDescription = null,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable(indication = null,
+                            interactionSource = remember { MutableInteractionSource() }) {
+                            navController.popBackStack()
+                        }
+                )
+                Text(
+                    "Your Habits",
+                    fontWeight = FontWeight.W500,
+                    fontSize = 21.sp,
+                    color = colorResource(R.color.font_black)
+                )
+            }
+            val dates = generateDates()
+            LazyRow(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+            {
+                itemsIndexed(dates) { index, data ->
+                    DateItem(
+                        index = index,
+                        selectedIndex = selectedDateIndex,
+                        day = data.first.first,
+                        month = data.first.second,
+                        date = data.second
+                    ) {
+                        selectedDateIndex = it
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+                    .background(Color.White)
+                    .padding(14.dp)
+            )
+            {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                )
+                {
+                    Text(
+                        "Today Habit",
+                        fontSize = 21.sp,
+                        fontFamily = FontFamily(Font(R.font.nunito_bolod)),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(0.8f)
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    goalsData.value.forEach {
+                        HabitItem(it.goal) { action, id ->
+                            if (action == "add") {
+                                viewmodel.completedTaskCount += 1
+                                viewmodel.addCurrentDateToGoal(it.id)
+                            } else {
+                                viewmodel.completedTaskCount -= 1
+                                viewmodel.removeCurrentDateFromGoal(it.id)
+                            }
+                            viewmodel.fetchGoals()
+                        }
+                    }
+
+                }
             }
         }
     }
-    }
-}
