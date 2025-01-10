@@ -1,6 +1,7 @@
 package com.example.goal
 
 import android.os.Build
+import android.util.Log
 
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
@@ -45,6 +46,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -165,16 +167,20 @@ fun HabitItem(goal : Goal?=null ,
 
 
 @Composable
-fun SettingsItem(){
+fun SettingsItem(title :String , onClick: (() -> Unit)?=null){
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight()
             .clip(RoundedCornerShape(9.dp))
-            .background(Color(0xFFfbfbfb)),
+            .background(Color(0xFFfbfbfb))
+            .clickable (indication = null, interactionSource = remember { MutableInteractionSource() }){
+                onClick?.invoke()
+            }
+        ,
         verticalAlignment = Alignment.CenterVertically
     ){
-        Text("Account",
+        Text(title,
             modifier = Modifier
                 .padding(12.dp)
                 .weight(0.8f),
@@ -190,7 +196,8 @@ fun SettingsItem(){
 }
 
 @Composable
-fun SettingsPage(){
+fun SettingsPage(viewmodel: MainViewmodel, navController: NavController){
+    var showAlertDialog by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -206,10 +213,46 @@ fun SettingsPage(){
                 .clip(RoundedCornerShape(6.dp))
                 .background(Color.White)
                 .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)){
-            for(i in 1..5){
-                SettingsItem()
-            }
+            verticalArrangement = Arrangement.spacedBy(24.dp)){
+                SettingsItem("Account")
+                SettingsItem("Terms and Condition")
+                SettingsItem("Policy")
+                SettingsItem("About App")
+                SettingsItem("Logout"){
+                    showAlertDialog = true
+
+                }
+
+
+        }
+        if(showAlertDialog){
+            AlertDialog(
+                onDismissRequest = {
+                    showAlertDialog  = false
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                           viewmodel.logout()
+                            navController.navigate("login")
+                        }
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    Button(
+                        onClick = {
+                            showAlertDialog = false
+                        }
+                    ) {
+                        Text("cancel")
+                    }
+                },
+                title = {
+                    Text("Are you sure you want to logout?")
+                }
+            )
         }
     }
 }
@@ -249,13 +292,16 @@ fun JournalingPage(navController: NavController,goal: Goal){
                 )
             Text("Goals: ${goal.goal}", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
         }
-        Column(
-            modifier = Modifier
-                .padding(top = 20.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White)
-        ) {
-            CalendarView(goal.completedDates)
+        if(goal.completedDates?.isNotEmpty() == true) {
+            Column(
+                modifier = Modifier
+                    .padding(top = 20.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White)
+            ) {
+                if (goal.completedDates != null)
+                    CalendarView(goal.completedDates)
+            }
         }
         Column(
             modifier = Modifier
@@ -281,13 +327,13 @@ fun JournalingPage(navController: NavController,goal: Goal){
                     ) {
                         Text("${goal.goal}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
-                    Text("Achieved",
+                    Text(if(goal.completed == true)"Achieved" else "Unachieved",
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
                             .clip(RoundedCornerShape(35.dp))
-                            .background(Color(0xffd7ffe7))
+                            .background( if(goal.completed == true )  Color(0xffd7ffe7) else Color.LightGray)
                             .padding(10.dp),
-                        style = TextStyle(textboxGradient))
+                        style = if(goal.completed == true )TextStyle(textboxGradient) else TextStyle())
 
                 }
 
@@ -315,7 +361,16 @@ fun JournalingPage(navController: NavController,goal: Goal){
                             fontSize = 16.sp,
                             modifier = Modifier.weight(0.8f)
                         )
-                        Text("${goal.completedDates?.size ?:0 } days", fontWeight = FontWeight.Normal, fontSize = 16.sp)
+                        val completedDates = goal.completedDates?.filter {
+                            it.isNotEmpty()
+                        }
+                        Text(
+                            if(completedDates?.isEmpty() ==true )
+                                "0 day"
+                            else
+                                "${completedDates?.size ?:0 } days",
+
+                            fontWeight = FontWeight.Normal, fontSize = 16.sp)
                     }
 
                     Row(modifier = Modifier.padding(top = 20.dp)) {
@@ -401,7 +456,11 @@ fun CalendarView(completedDates: List<String>?) {
                 )
             }
         }
-        val completedDatesFormatted = completedDates?.map {
+        val completedDatesFormatted =
+            completedDates
+                ?.filter { it.isNotEmpty() }
+                ?.map {
+
             SimpleDateFormat("yyyy-MM-dd").parse(it)?.let { date ->
                 SimpleDateFormat("yyyy-MM-dd").format(date)
             }
@@ -476,11 +535,12 @@ fun ProgressReportPage(viewmodel: MainViewmodel, onClickProgress: ((Goal) -> Uni
         )
     )
     val completedTaskCount = goalsData.value ?.filter { goal ->
-        goal.goal.isCompleted
+        goal.goal.completed ?:false
     }?.size ?: 0
+
     var progress:Float =0f
     if(goalsData.value.isNotEmpty())
-        progress =( viewmodel.completedTaskCount.toFloat()/goalsData.value.size.toFloat() )
+        progress =( completedTaskCount.toFloat()/goalsData.value.size.toFloat() )
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -623,7 +683,7 @@ fun ProgressItem(goal: Goal,onClick:()->Unit){
         )
     )
     var progress:Float =0f
-    val completed = goal.isCompleted
+    val completed = goal.completed
     if((goal.period ?: 0) > 0)
         progress =( (goal.completedDates?.size?.toFloat() ?:0f)/ (goal.period?.toFloat() ?:1f) )
     Column(
@@ -658,13 +718,13 @@ fun ProgressItem(goal: Goal,onClick:()->Unit){
                 Text("${goal.completedDates?.size ?:0} from ${goal.period} days target", fontSize = 14.sp, color = colorResource(R.color.font_black))
             }
 
-            Text(if(completed) "Achieved" else "Unachieved",
+            Text(if(completed ?:false) "Achieved" else "Unachieved",
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .clip(RoundedCornerShape(35.dp))
-                    .background(if (completed) Color(0xffd7ffe7) else Color(0xFF959595))
+                    .background(if (completed ?:false) Color(0xffd7ffe7) else Color(0xFF959595))
                     .padding(10.dp),
-                style = if(completed ) TextStyle(textboxGradient) else TextStyle ())
+                style = if(completed ?:false) TextStyle(textboxGradient) else TextStyle ())
         }
     }
 }
@@ -1230,11 +1290,11 @@ fun MainPage(viewmodel: MainViewmodel, navController: NavController){
                     1->{
                         ProgressReportPage(viewmodel){
                             val completedDatesString = it.completedDates?.joinToString(",")
-                            navController.navigate("onGoalDetails/${it.goal}/${it.habit}/${it.period}/${completedDatesString}/${it.type}/${it.created}/${it.isCompleted}"  )
+                            navController.navigate("onGoalDetails/${it.goal}/${it.habit}/${it.period}/${completedDatesString}/${it.type}/${it.created}/${it.completed}"  )
                         }
                     }
                     2->{
-                        SettingsPage()
+                        SettingsPage(viewmodel,navController)
                     }
                 }
 
@@ -1250,6 +1310,7 @@ fun getTodayCompletedTasks(goalsData: List<GoalWithId>): Int {
 
     return goalsData
         .map{ it.goal}
+        .filter { it.completed == false }
         .mapNotNull { it.completedDates } // Extract the completedDates lists
         .flatten()
         .count { it == currentDate }
@@ -1262,6 +1323,12 @@ fun HomePage(navController: NavController,viewmodel: MainViewmodel, goalsData: L
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showDeleteSuccessDialog by remember { mutableStateOf(false) }
     var deleteId by remember { mutableStateOf("") }
+    val currentDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+    val incompleteGoalsData = goalsData.filter {
+        it.goal.completed == false
+    }
+    Log.d("pathris", goalsData.toString())
 
     val gradient = Brush.horizontalGradient(
         listOf(
@@ -1272,7 +1339,7 @@ fun HomePage(navController: NavController,viewmodel: MainViewmodel, goalsData: L
 
        var progress:Float =0f
       if(goalsData.isNotEmpty())
-            progress =( viewmodel.completedTaskCount.toFloat()/goalsData.size.toFloat() )
+            progress =( viewmodel.completedTaskCount.toFloat()/incompleteGoalsData.size.toFloat() )
     val date = LocalDate.now()
     val weekdays =listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
 
@@ -1375,7 +1442,7 @@ fun HomePage(navController: NavController,viewmodel: MainViewmodel, goalsData: L
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            "${viewmodel.completedTaskCount}  of  ${goalsData.size} habits",
+                            "${viewmodel.completedTaskCount}  of  ${incompleteGoalsData.size} habits",
                             fontSize = 20.sp,
                             color = Color.White,
                             fontWeight = FontWeight.SemiBold
@@ -1419,7 +1486,7 @@ fun HomePage(navController: NavController,viewmodel: MainViewmodel, goalsData: L
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(0.8f)
                 )
-                if(goalsData.size>3) {
+                if(incompleteGoalsData.size>3) {
                     Text(
                         "see all",
                         fontSize = 14.sp,
@@ -1443,7 +1510,7 @@ fun HomePage(navController: NavController,viewmodel: MainViewmodel, goalsData: L
                 modifier = Modifier.padding(top = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                goalsData.take(3).forEach {
+                incompleteGoalsData.take(3).forEach {
                         it1 -> HabitItem(it1.goal){action, id->
                             if(action =="add"){
                                 viewmodel.completedTaskCount +=1
@@ -1453,7 +1520,6 @@ fun HomePage(navController: NavController,viewmodel: MainViewmodel, goalsData: L
                         else{
                             viewmodel.completedTaskCount -=1
                                 viewmodel.removeCurrentDateFromGoal(it1.id)
-
                             }
                     viewmodel.fetchGoals()
                     }
@@ -1505,7 +1571,7 @@ fun HomePage(navController: NavController,viewmodel: MainViewmodel, goalsData: L
                     modifier = Modifier.padding(top = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    goalsData.take(3).forEach {
+                    incompleteGoalsData.take(3).forEach {
                         GoalItem(it.goal,
                             onDeleteClick = {
                                 showDeleteDialog = true

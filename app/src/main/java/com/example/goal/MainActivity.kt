@@ -2,6 +2,7 @@ package com.example.goal
 
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -78,8 +79,8 @@ class MainActivity : ComponentActivity() {
                             val created  = it.arguments?.getString("created")?.toLongOrNull()
                             val isCompleted  = it.arguments?.getString("isCompleted").toBoolean() ?: false
                             val completedDates = dates?.split(",") ?: emptyList()
-
-                            JournalingPage(navController, Goal(goal,habit,period,type,created, completedDates = completedDates, isCompleted = isCompleted))
+                            Log.d("pathris",completedDates.toString() )
+                            JournalingPage(navController, Goal(goal,habit,period,type,created, completedDates = completedDates, completed = isCompleted))
                         }
 
                     }

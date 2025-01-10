@@ -2,11 +2,9 @@ package com.example.goal
 
 import android.os.Build
 import android.util.Patterns
-import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,11 +13,9 @@ import com.example.goal.data.Goal
 import com.example.goal.data.GoalWithId
 import com.example.goal.data.MainFlow
 import com.google.android.gms.tasks.OnCompleteListener
-import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -102,21 +98,31 @@ class MainViewmodel : ViewModel() {
             return
         } else {
 
-            val userData = hashMapOf(
-                "name" to name
-            )
-            firebaseAuth.currentUser?.uid?.let {uid->
-                db.collection(uid)
-                    .add(userData)
-            }
+
 
             firebaseAuth.createUserWithEmailAndPassword(email, password).addOnCompleteListener(
                 OnCompleteListener { task ->
                     if (task.isSuccessful) {
-                        navController.navigate("main")
-                        viewModelScope.launch {
-                            flow.emit(MainFlow.toastSuccess("success"))
+                        val userData = hashMapOf(
+                            "name" to name
+                        )
+                        firebaseAuth.currentUser?.uid?.let {uid->
+                            db.collection("Users")
+                                .document(uid)
+                                .set(userData).addOnCompleteListener(
+                                    OnCompleteListener {
+                                        if(it.isSuccessful)
+                                            navController.navigate("main")
+                                        else{
+                                            viewModelScope.launch {
+                                                flow.emit(MainFlow.toastSuccess(it.exception.toString()))
+                                            }
+                                        }
+
+                                    }
+                                )
                         }
+
                     } else {
                         viewModelScope.launch {
                             flow.emit(MainFlow.toastSuccess(task.exception.toString()))
@@ -166,25 +172,34 @@ class MainViewmodel : ViewModel() {
                 .document(uid)
                 .collection("userGoals")
                 .get()
-                .addOnCompleteListener(OnCompleteListener {task->
-                    if(task.isSuccessful){
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
                         val goals = task.result?.documents?.mapNotNull { document ->
-                           val goal = document.toObject(Goal::class.java)
-                            goal?.let{goal ->
+                            try {
+                                val goal = Goal(
+                                    goal = document.getString("goal"),
+                                    habit = document.getString("habit"),
+                                    period = document.getLong("period")?.toInt(),
+                                    type = document.getString("type"),
+                                    created = document.getLong("created"),
+                                    completedDates = document.get("completedDates") as? List<String>,
+                                    completed = document.getBoolean("completed")
+                                )
                                 GoalWithId(document.id, goal)
+                            } catch (e: Exception) {
+                                null
                             }
-
                         }?.toMutableList()
 
-                        _goalsData.value= goals ?: mutableListOf()
-                    }
-                    else{
+                        _goalsData.value = goals ?: mutableListOf()
+                    } else {
                         viewModelScope.launch {
                             flow.emit(MainFlow.toastSuccess(task.exception.toString()))
                         }
                     }
-                })
+                }
         }
+
     }
 
      @RequiresApi(Build.VERSION_CODES.O)
@@ -330,6 +345,9 @@ class MainViewmodel : ViewModel() {
                     }
                 })
         }
+    }
+    fun logout(){
+        firebaseAuth.signOut()
     }
 
 }

@@ -18,7 +18,7 @@ data class Goal(
     val type : String ?=null,
     val created : Long ?=0,
     val completedDates : List<String>?=null,
-    val isCompleted : Boolean= false
+    val completed : Boolean? = false,
 )
 {
     companion object {
