@@ -90,6 +90,7 @@ import androidx.navigation.NavHostController
 import com.example.goal.data.Goal
 import com.example.goal.data.GoalWithId
 import kotlinx.coroutines.launch
+import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -103,12 +104,7 @@ import java.util.Date
 fun HabitItem(goal : Goal?=null ,
               onCheckboxClick: ((String, Long) -> Unit)? = null
 ){
-    val textboxGradient = Brush.horizontalGradient(
-        listOf(
-            Color(0xFF37C871),
-            Color(0xff5FE394)
-        )
-    )
+
     val currentDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
     var containsToday = false
     if(goal?.completedDates?.contains(currentDate) == true){
@@ -237,7 +233,7 @@ fun SettingsPage(viewmodel: MainViewmodel, navController: NavController){
                             navController.navigate("login")
                         }
                     ) {
-                        Text("Delete")
+                        Text("Logout")
                     }
                 },
                 dismissButton = {
@@ -362,7 +358,7 @@ fun JournalingPage(navController: NavController,goal: Goal){
                             modifier = Modifier.weight(0.8f)
                         )
                         val completedDates = goal.completedDates?.filter {
-                            it.isNotEmpty()
+                            it.isNotEmpty() && it != "null"
                         }
                         Text(
                             if(completedDates?.isEmpty() ==true )
@@ -456,15 +452,19 @@ fun CalendarView(completedDates: List<String>?) {
                 )
             }
         }
-        val completedDatesFormatted =
-            completedDates
-                ?.filter { it.isNotEmpty() }
-                ?.map {
-
-            SimpleDateFormat("yyyy-MM-dd").parse(it)?.let { date ->
-                SimpleDateFormat("yyyy-MM-dd").format(date)
+        val completedDatesFormatted = completedDates
+            ?.takeIf { it.isNotEmpty() }
+            ?.filter { it.isNotEmpty() }
+            ?.mapNotNull {
+                try {
+                    SimpleDateFormat("yyyy-MM-dd").parse(it)?.let { date ->
+                        SimpleDateFormat("yyyy-MM-dd").format(date)
+                    }
+                } catch (e: ParseException) {
+                    null // Handle invalid date format gracefully
+                }
             }
-        }?.toSet() ?: emptySet()
+            ?.toSet() ?: emptySet()
         // Days grid
         val daysInMonth = getDaysInMonth(calendar)
         LazyVerticalGrid(
@@ -977,7 +977,7 @@ fun CreateHabit(navController: NavController,updateGoal :Goal?=null, onClickClos
 
     var selectedPeriod by remember { mutableStateOf("${updateGoal?.period ?: 7} days" ) }
     var selectedPeriodInDays by remember { mutableStateOf(updateGoal?.period?:7) }
-    var selectedHabitTime by remember { mutableStateOf(updateGoal?.type ?:"") }
+    var selectedHabitType by remember { mutableStateOf(updateGoal?.type ?:"Everyday") }
     var habit by remember { mutableStateOf(updateGoal?.habit ?:"") }
     var goal by remember { mutableStateOf(updateGoal?.goal ?:"") }
     if(updateGoal !=null){
@@ -1132,7 +1132,7 @@ fun CreateHabit(navController: NavController,updateGoal :Goal?=null, onClickClos
                     }
             ) {
                 Row (verticalAlignment = Alignment.CenterVertically){
-                    Text(selectedHabitTime, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(selectedHabitType, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Icon(
                         Icons.Filled.ArrowDropDown,
                         contentDescription = null,
@@ -1149,7 +1149,7 @@ fun CreateHabit(navController: NavController,updateGoal :Goal?=null, onClickClos
                             Text("Everyday")
                         },
                         onClick = {
-                            selectedHabitTime = "Everyday"
+                            selectedHabitType = "Everyday"
                             showDropdownHabit = false
                         }
                     )
@@ -1158,7 +1158,7 @@ fun CreateHabit(navController: NavController,updateGoal :Goal?=null, onClickClos
                             Text("Weekdays")
                         },
                         onClick = {
-                            selectedHabitTime = "Weekdays"
+                            selectedHabitType = "Weekdays"
                             showDropdownHabit = false
                         }
                     )
@@ -1167,7 +1167,7 @@ fun CreateHabit(navController: NavController,updateGoal :Goal?=null, onClickClos
                             Text("Weekends")
                         },
                         onClick = {
-                            selectedHabitTime = "Weekends"
+                            selectedHabitType = "Weekends"
                             showDropdownHabit = false
                         }
                     )
@@ -1176,9 +1176,9 @@ fun CreateHabit(navController: NavController,updateGoal :Goal?=null, onClickClos
         }
         ButtonGradient( if(!isEdit)"Create New" else "Update"){
             if(isEdit)
-                onEdit?.invoke(Goal(goal, habit, selectedPeriodInDays, selectedHabitTime,updateGoal?.created))
+                onEdit?.invoke(Goal(goal, habit, selectedPeriodInDays, selectedHabitType,updateGoal?.created))
             else
-                onCreateHabit?.invoke(goal, habit, selectedPeriodInDays, selectedHabitTime)
+                onCreateHabit?.invoke(goal, habit, selectedPeriodInDays, selectedHabitType)
         }
 
     }
@@ -1341,7 +1341,7 @@ fun HomePage(navController: NavController,viewmodel: MainViewmodel, goalsData: L
       if(goalsData.isNotEmpty())
             progress =( viewmodel.completedTaskCount.toFloat()/incompleteGoalsData.size.toFloat() )
     val date = LocalDate.now()
-    val weekdays =listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+    val weekdays =listOf( "Mon", "Tue", "Wed", "Thu", "Fri", "Sat","Sun")
 
     AnimatedVisibility(showDeleteDialog) {
         AlertDialog(
@@ -1382,7 +1382,7 @@ fun HomePage(navController: NavController,viewmodel: MainViewmodel, goalsData: L
             .verticalScroll(rememberScrollState())
     ){
         Text(
-            "${weekdays[date.dayOfWeek.value]}, ${date.dayOfMonth} ${date.month} ${date.year}",
+            "${weekdays[date.dayOfWeek.value-1]}, ${date.dayOfMonth} ${date.month} ${date.year}",
             fontSize = 16.sp,
             color = colorResource(R.color.font_black),
             fontWeight = FontWeight.SemiBold
